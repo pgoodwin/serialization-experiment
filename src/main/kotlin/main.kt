@@ -10,8 +10,14 @@ fun main() {
     val successObject = Payload()
     val errorObject = Error()
     val successUnion = UnionType(payload = successObject)
-    val failureUnion = UnionType(error = errorObject)
+    val errorPoly = UnionType(error = errorObject)
     val mapper = ObjectMapper()
-    println(mapper.writeValueAsString(successUnion))
-    println(mapper.writeValueAsString(failureUnion))
+    val successAsJson = mapper.writeValueAsString(successUnion)
+    val errorAsJson = mapper.writeValueAsString(errorPoly)
+
+    println(successAsJson)
+    println(errorAsJson)
+
+    val reconstitutedSuccess = mapper.readValue<UnionType>(successAsJson, UnionType::class.java)
+    println("reconstitution successful: " + (reconstitutedSuccess == successUnion))
 }
