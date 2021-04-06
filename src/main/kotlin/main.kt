@@ -10,10 +10,10 @@ fun main() {
     val successObject = Payload()
     val errorObject = Error()
     val successUnion = UnionType(payload = successObject)
-    val errorPoly = UnionType(error = errorObject)
+    val errorUnion = UnionType(error = errorObject)
     val mapper = ObjectMapper()
     val successAsJson = mapper.writeValueAsString(successUnion)
-    val errorAsJson = mapper.writeValueAsString(errorPoly)
+    val errorAsJson = mapper.writeValueAsString(errorUnion)
 
     println(successAsJson)
     println(errorAsJson)
