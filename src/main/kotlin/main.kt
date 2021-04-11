@@ -1,75 +1,69 @@
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonSubTypes
-import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonTypeInfo(use= JsonTypeInfo.Id.NAME, include= JsonTypeInfo.As.PROPERTY, property="type")
-@JsonSubTypes(JsonSubTypes.Type(value = UnionType.Payload::class, name = "payload"),  JsonSubTypes.Type(value = UnionType.Error::class, name = "error"))
-sealed class UnionType {
-    data class Payload(val message: String = "Hi mom"): UnionType()
-    data class Error(val status: String = "LookingBad", val message: String = "hang it up"): UnionType()
-}
-
 data class MultiValuePayload(val first: String = "First value", val second: String = "Second value")
+data class MultiValueError(val code: String, val reason: String, val status: String, val message: String)
 
 fun main() {
-    resultExperiment()
-    println()
-    unionTypeExperiment()
-}
-
-fun resultExperiment() {
     // The values we'll be serializing
     val successObject = Ok(MultiValuePayload(second = "some other value"))
     val errorObject = Err("No bueno")
-    // Doing it this way causes multiple instances to be deserialized which forces the deserializer to
-    // correctly consume all the tokens to avoid breaking the deserialization of downstream objects
+    val multiValueErrorObject = Err(MultiValueError("invalidState", "insufficientdata", "418", "I'm goin' home"))
+
     val resultArray = arrayOf(successObject, errorObject)
 
     // Initialize the mapper with our serializers
-    val resultSerializer = ResultSerializer()
-    val resultDeserializer = ResultDeserializer(
-        MultiValuePayload::class.java,
-        String::class.java
-    )
-    val kotlinModule = KotlinModule()
-        .addSerializer(Result::class.java, resultSerializer)
-        .addDeserializer(Result::class.java, resultDeserializer)
-    val mapper = ObjectMapper().registerModule(kotlinModule)
-
-    // Serialize
-    val arrayAsJson = mapper.writeValueAsString(resultArray)
-    println("Array of results as Json: $arrayAsJson")
-
-    // Define types in a way that Jackson understands. This is the downside of Java's type erasure
-    val resultType = mapper.typeFactory.constructParametricType(
+    val mapper = ObjectMapper()
+    // Define types in a way that Jackson understands. This is a downside of Java's type erasure
+    val multivaluePayloadResultType = mapper.typeFactory.constructParametricType(
         Result::class.java,
         MultiValuePayload::class.java,
         String::class.java
     )
-    val resultArrayType = mapper.typeFactory.constructArrayType(resultType)
+    val multiValueErrorResultType = mapper.typeFactory.constructParametricType(
+        Result::class.java,
+        String::class.java,
+        MultiValueError::class.java
+    )
 
-    // Deserialize
+    val resultSerializer = ResultSerializer()
+    val deserializers = JavaTypeDeserializers(mapper.typeFactory)
+    deserializers.addDeserializer(
+        multivaluePayloadResultType,
+        ResultDeserializer(
+            MultiValuePayload::class.java,
+            String::class.java
+        )
+    )
+    deserializers.addDeserializer(
+        multiValueErrorResultType,
+        ResultDeserializer(
+            String::class.java,
+            MultiValueError::class.java
+        )
+    )
+    val kotlinModule = KotlinModule()
+    kotlinModule.setDeserializers(deserializers)
+    kotlinModule.addSerializer(Result::class.java, resultSerializer)
+    mapper.registerModule(kotlinModule)
+
+
+    // Serialize and deserialize the array
+    val arrayAsJson = mapper.writeValueAsString(resultArray)
+    println("Array of results as Json: $arrayAsJson")
+
+    val resultArrayType = mapper.typeFactory.constructArrayType(multivaluePayloadResultType)
     val reconstitutedArray = mapper.readValue<Array<Result<MultiValuePayload, String>>>(arrayAsJson, resultArrayType)
     println("reconstitution successful: " + (reconstitutedArray[0] == successObject && reconstitutedArray[1] == errorObject))
-}
 
-private fun unionTypeExperiment() {
-    val successObject = UnionType.Payload()
-    val errorObject = UnionType.Error()
+    // Serialize and deserialize the other error object
+    val anotherErrorJson = mapper.writeValueAsString(multiValueErrorObject)
+    println("A different error json: $anotherErrorJson")
 
-    val mapper = ObjectMapper()
-    val successAsJson = mapper.writeValueAsString(successObject)
-    val errorAsJson = mapper.writeValueAsString(errorObject)
-
-    println("Success as Json: $successAsJson")
-    println("Error as Json: $errorAsJson")
-
-    val reconstitutedSuccess = mapper.readValue<UnionType>(successAsJson, UnionType::class.java)
-    println("reconstitution successful: " + (reconstitutedSuccess == successObject))
+    val anotherReconstitutedError =
+        mapper.readValue<Result<String, MultiValueError>>(anotherErrorJson, multiValueErrorResultType)
+    println("reconstitution successful: " + (anotherReconstitutedError == multiValueErrorObject))
 }
