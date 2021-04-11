@@ -32,16 +32,14 @@ fun resultExperiment() {
     val resultArray = arrayOf(successObject, errorObject)
 
     // Initialize the mapper with our serializers
-    val resultSerializer = ResultJsonSerializer()
+    val resultSerializer = ResultSerializer()
     val resultDeserializer = ResultDeserializer(
         MultiValuePayload::class.java,
         String::class.java
     )
-
     val kotlinModule = KotlinModule()
         .addSerializer(Result::class.java, resultSerializer)
         .addDeserializer(Result::class.java, resultDeserializer)
-
     val mapper = ObjectMapper().registerModule(kotlinModule)
 
     // Serialize
@@ -53,8 +51,8 @@ fun resultExperiment() {
         Result::class.java,
         MultiValuePayload::class.java,
         String::class.java
-    ) // means: Result<MultiValuePayload, String>>
-    val resultArrayType = mapper.typeFactory.constructArrayType(resultType) // means: Array<Result<MultiValuePayload, String>>
+    )
+    val resultArrayType = mapper.typeFactory.constructArrayType(resultType)
 
     // Deserialize
     val reconstitutedArray = mapper.readValue<Array<Result<MultiValuePayload, String>>>(arrayAsJson, resultArrayType)

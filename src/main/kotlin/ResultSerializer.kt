@@ -3,7 +3,7 @@ import com.fasterxml.jackson.databind.JsonSerializer
 import com.fasterxml.jackson.databind.SerializerProvider
 import com.github.michaelbull.result.*
 
-class ResultJsonSerializer : JsonSerializer<Result<*, *>>() {
+class ResultSerializer : JsonSerializer<Result<*, *>>() {
     override fun serialize(value: Result<*, *>?, gen: JsonGenerator?, serializers: SerializerProvider?) {
         if (value != null && gen != null) {
             gen.writeStartObject()
